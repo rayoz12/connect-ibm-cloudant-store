@@ -2,33 +2,22 @@
   "name": "connect-cloudant-store",
   "version": "1.0.0",
   "description": "Node JS express-session storage connector for IBM Cloudant",
-  "main": "index.js",
-  "devDependencies": {
-    "chai": "^3.5.0",
-    "eslint": "^2.10.2",
-    "istanbul": "^0.4.5",
-    "mocha": "^6.1.0",
-    "pre-commit": "^1.1.3",
-    "sinon": "^1.17.6"
-  },
+  "main": "build/index.js",
+  "type": "module",
   "dependencies": {
-    "@cloudant/cloudant": "^4.1.0",
     "debug": "^2.6.9",
-    "express-session": "^1.13.0",
-    "lodash": "^4.14.0"
+    "express-session": "^1.13.0"
   },
   "scripts": {
     "test": "mocha test --recursive",
     "coverage": "istanbul cover _mocha -- --recursive",
-    "lint": "eslint index.js test lib"
+    "lint": "eslint index.js test lib",
+    "build": "tsc && cp package* build && cd build && npm pack && mv *.tgz ../../../packages",
+    "start": "node --env-file=.env --loader ts-node/esm harness.ts"
   },
-  "pre-commit": [
-    "lint",
-    "test"
-  ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/adriantanasa/connect-cloudant-store.git"
+    "url": "git+https://github.com/rayoz12/connect-ibm-cloudant-store.git"
   },
   "keywords": [
     "connect-cloudant-store",
@@ -40,10 +29,18 @@
     "bluemix",
     "ibm"
   ],
-  "author": "Adrian Tanasa <adrian_tanasa@yahoo.com>",
+  "author": "Ryan Pereira <rayoz12@yahoo.com.au>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/adriantanasa/connect-cloudant-store/issues"
+    "url": "https://github.com/rayoz12/connect-ibm-cloudant-store/issues"
   },
-  "homepage": "https://github.com/adriantanasa/connect-cloudant-store#readme"
+  "homepage": "https://github.com/rayoz12/connect-ibm-cloudant-store#readme",
+  "devDependencies": {
+    "@types/express-session": "^1.18.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "peerDependencies": {
+    "@ibm-cloud/cloudant": "^0.11.0"
+  }
 }
