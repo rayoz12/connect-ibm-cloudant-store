@@ -1,7 +1,8 @@
 import * as CloudantV1 from "@ibm-cloud/cloudant/cloudant/v1.js";
 import dbg from "debug";
 const debug = dbg("express-session:cloudant-store")
-import { Store, MemoryStore, SessionData, Session } from "express-session";
+import { Store, SessionData } from "express-session";
+import TTLCache from "@isaacs/ttlcache";
 
 function getTTL(store: IBMCloudantStore, sess: SessionDataDocument) {
     var maxAge = sess.cookie && sess.cookie.maxAge ? sess.cookie.maxAge : null;
@@ -21,6 +22,9 @@ export interface IBMCloudantStoreOptions {
     db?: string;
     expiredSessionsDBViewName?: string;
     expiredSessionsDDocName?: string;
+    disableTTLRefresh?: boolean;
+    enableReadCache?: boolean;
+    readCacheTTL?: number;
 }
 
 export type SessionDataDocument = SessionData & {
@@ -38,6 +42,11 @@ export class IBMCloudantStore extends Store {
     db: string;
     expiredSessionsDBViewName: any;
     expiredSessionsDDocName: any;
+    disableTTLRefresh: boolean;
+    enableReadCache: boolean;
+    readCacheTTL: number;
+
+    cache: TTLCache<string, SessionDataDocument>
 
     constructor(opts: IBMCloudantStoreOptions) {
         super()
@@ -49,7 +58,12 @@ export class IBMCloudantStore extends Store {
 
         this.expiredSessionsDBViewName = opts.expiredSessionsDBViewName || 'express_expired_sessions';
         this.expiredSessionsDDocName = opts.expiredSessionsDDocName || 'expired_sessions';
+        
+        this.disableTTLRefresh = opts.disableTTLRefresh || false;
+        this.enableReadCache = opts.enableReadCache || false;
+        this.readCacheTTL = opts.readCacheTTL || 1000;
 
+        this.cache = new TTLCache({ ttl: this.readCacheTTL });
         
     }
 
@@ -101,6 +115,13 @@ export class IBMCloudantStore extends Store {
 
     async get(sid: string, callback: (err?: any, session?: SessionData | null) => void): Promise<void> {
         debug('GET "%s"', sid);
+
+        if (this.enableReadCache && this.cache.has(sid)) {
+            debug('GET using cache value for "%s"', sid);
+            const doc = this.cache.get(sid);
+            return callback(null, doc);
+        }
+
         try {
             const results = await this.client.getDocument({
                 db: this.db,
@@ -115,6 +136,11 @@ export class IBMCloudantStore extends Store {
             }
             else {
                 debug('GET "%s" found rev "%s"', sid, doc._rev);
+                
+                if (this.enableReadCache) {
+                    this.cache.set(sid, doc as SessionDataDocument);
+                }
+
                 return callback(null, doc as SessionData);
             }
         }
@@ -234,6 +260,12 @@ export class IBMCloudantStore extends Store {
 
 
     async touch(sid: string, session: SessionDataDocument, callback?: () => void): Promise<void> {
+        if (this.disableTTLRefresh) {
+            debug('TOUCH ignored due to disableTTLRefresh "%s" rev "%s"', sid, session._rev);
+            if (callback)
+                return callback();
+        }
+        debug('TOUCH session "%s" rev "%s"', sid, session._rev);
         try {
             const sessionDocResult = await this.client.getDocument({
                 db: this.db,
@@ -246,7 +278,7 @@ export class IBMCloudantStore extends Store {
                 const doc = sessionToDb(this.prefix + sid, sessionDataDocument, getTTL(this, session));
                 const result = await this.client.postDocument({
                     db: this.db,
-                    document: doc
+                    document: doc,
                 });
                 if (callback) {
                     return callback();
@@ -254,7 +286,7 @@ export class IBMCloudantStore extends Store {
                 return;
             }
             catch (e) {
-                debug('SET session error "%s" rev "%s" err "%s"', sid, session._rev, JSON.stringify(e));
+                debug('TOUCH session error "%s" rev "%s" err "%s"', sid, session._rev, JSON.stringify(e));
                 this.emit('error', e);
                 if (callback)
                     return callback();

@@ -5,6 +5,7 @@
   "main": "build/index.js",
   "type": "module",
   "dependencies": {
+    "@isaacs/ttlcache": "^1.4.1",
     "debug": "^2.6.9",
     "express-session": "^1.13.0"
   },
